@@ -16,10 +16,117 @@ class OrderController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
+    public function kural1($toplamtutar,$sinir,$indirimorani,$i,$response){
+        if($toplamtutar>=$sinir){
+         
+
+
+         $total=round($total=$toplamtutar*(100-$indirimorani)/100,2);
+             $response['discounts'][$i]['discountReason']="10_PERCENT_OVER_1000";
+
+                   $response['discounts'][$i]['discountAmount']=$total*$indirimorani/100;
+                   $response['totalDiscount']=round(($response['discounts'][$i]['discountAmount']),2);
+                   $response['discountedTotal']=$response['discounts'][$i]['subtotal']=round(($total*(100-$indirimorani)/100),2);
+            $i++;
+            $response['i']=$i;
+          
+        }
+        else{
+          $response['i']=$i;
+         
+        }
+         return $response;
+    }
+
+   /* public function kural2($category_id,$hangikategori,$kacadet,$sinir,$ucretsiz_adet,$birimFiyat,$response){
+       
+       //category_id=2 , hangikategori=2 
+      $i=$response['i'];
+          if($category_id==$hangikategori && $kacadet>=$sinir) {
+                   
+                
+                 $quantity=floor($kacadet/$sinir);
+                   $s['total']=($kacadet-$quantity)*$birimFiyat;
+                    $response['discounts'][$i]['discountReason']="BUY_5_GET_1";
+                   $response['totalDiscount']+=$response['discounts'][$i]['discountAmount']=
+                   round(($kacadet*$birimFiyat)-$s['total'],2);
+                    $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round($s['total'],2);
+                 }
+            else{
+              $response['i']=$i;
+            }
+            return $response;
+    }*/
+    public function kural2($products,$hangikategori,$adet,$response){
+      
+       foreach($products as $p){
+                $category=Product::select('category')->where('id',$p['productId'])->first();
+                  $category_id=$category->category;
+                   $i=$response['i'];
+                  $kacadet=$p['quantity'];
+                  $birimFiyat=$p['unitPrice'];
+
+          if($category_id==$hangikategori && $kacadet>=$adet) {
+                   
+                
+                 $quantity=floor($kacadet/$adet);
+                   $total=($kacadet-$quantity)*$birimFiyat;
+                    $response['discounts'][$i]['discountReason']="BUY_5_GET_1";
+                   $response['totalDiscount']+=$response['discounts'][$i]['discountAmount']=
+                   round(($kacadet*$birimFiyat)-$total,2);
+                    $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round($total,2);
+                 }
+           
+           
+       }
+       $response['i']=++$response['i'];
+        return $response;
+    }
+    public function kural3($products,$indirimlikategori,$indirimorani,$response){
+
+       $response;
+       $adet=0;
+        $ucuzolan=9999999999999;
+        $i=$response['i'];
+        $subtotal=0;
+       
+      foreach($products as $p){
+                $category=Product::select('category')->where('id',$p['productId'])->first();
+                $category_id=$category->category;
+               
+               
+                if($category_id==$indirimlikategori){
+                  $adet++;
+                  if($p['unitPrice']<$ucuzolan){
+                    $ucuzolan=$p['unitPrice'];
+                  }
+                }
+
+                $subtotal+=$p['unitPrice'];
+
+      }
+
+      if($adet>=2){
+        $response['discounts'][$i]['discountReason']="20_PERCENT_SAMECATEGORY";
+                   $ucuzolan*(100-$indirimorani)/100;
+                   $response['discounts'][$i]['discountAmount']=round($ucuzolan*$indirimorani/100,2);
+                    $response['discounts'][$i]['subtotal']=round($subtotal-$response['discounts'][$i]['discountAmount'],2);
+                     $response['totalDiscount']+=$response['discounts'][$i]['discountAmount'];
+                      $response['discountedTotal']+=$response['discounts'][$i]['subtotal'];
+                      $response['i']=++$i;
+
+                }
+        else{
+          $response['i']=$i;
+        }
+
+        return $response;
+    }
     public function index(Request $request)
     {
         //
 
+   
        $validator = \Validator::make($request->all(), [
              'customerId' => 'required|integer|min:1|max:99999',
              'id' => 'required|integer|min:1|max:99999',
@@ -62,52 +169,37 @@ class OrderController extends Controller
             
              }
          }
-
-          $i=0;
-           $response['order_id']=0;
+         $i=0;
+          $response['discounts'][$i]['discountReason']=0;
+          $response['discounts'][$i]['discountAmount']=0;
+          $response['discounts'][$i]['subtotal']=0;
           $response['totalDiscount']=0;
-          $response['discountedTotal']=0;
-          $response['discounts']=[];
-         if($data['total']>1000){
-            $data['total']=$data['total']*90/100;
-             $response['discounts'][$i]['discountReason']="10_PERCENT_OVER_1000";
+           $response['discountedTotal']=0;
+           $response['i']=0;
 
-                   $response['discounts'][$i]['discountAmount']=$data['total']/10;
-                   $response['totalDiscount']+=round(($response['discounts'][$i]['discountAmount']),2);
-                   $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round(($data['total']*90/100),2);
-            $i++;
-         }
-
-
-
-          $order=Order::insertGetId([
+       $response=$this->kural1($request->total,1000,10,0,$response);
+      $response=$this->kural2($data['items'],3,6,$response);   
+       $response=$this->kural3($data['items'],1,20,$response);
+        
+        
+         
+         $order=Order::insertGetId([
                     'customer_id'=>$data['customerId'],
-                    'total'=>$data['total'],
+                    'total'=>$response['discountedTotal'],
                 ]);
            $response['order_id']=$order;
           
           
-         
+        
           DB::statement('SET FOREIGN_KEY_CHECKS=0;');
          
-          foreach($data['items'] as $s){
+         foreach($data['items'] as $s){
 
 
-                 $category=Product::select('category')->where('id',$s['productId'])->first();
-                 $category_id=$category->category;
-
-                 if($category_id==2 && $s['quantity']>=6) {
-                   
                 
-                 $quantity=floor($s['quantity']/6);
-                   $s['total']=($s['quantity']-$quantity)*$s['unitPrice'];
-                    $response['discounts'][$i]['discountReason']="BUY_5_GET_1";
-                   $response['totalDiscount']+=$response['discounts'][$i]['discountAmount']=
-                   round(($s['quantity']*$s['unitPrice'])-$s['total'],2
+                 
 
-               );
-                    $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round($s['total'],2);
-                 }
+                
 
                 OrderProduct::create([
                     'order_id'=>$order,
@@ -122,7 +214,7 @@ class OrderController extends Controller
 
           }
           DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-
+          unset($response['i']);
           return response()->json($response);
 
        
