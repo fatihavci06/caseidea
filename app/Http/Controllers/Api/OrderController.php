@@ -63,12 +63,52 @@ class OrderController extends Controller
              }
          }
 
+          $i=0;
+           $response['order_id']=0;
+          $response['totalDiscount']=0;
+          $response['discountedTotal']=0;
+          $response['discounts']=[];
+         if($data['total']>1000){
+            $data['total']=$data['total']*90/100;
+             $response['discounts'][$i]['discountReason']="10_PERCENT_OVER_1000";
+
+                   $response['discounts'][$i]['discountAmount']=$data['total']/10;
+                   $response['totalDiscount']+=round(($response['discounts'][$i]['discountAmount']),2);
+                   $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round(($data['total']*90/100),2);
+            $i++;
+         }
+
+
+
           $order=Order::insertGetId([
                     'customer_id'=>$data['customerId'],
                     'total'=>$data['total'],
                 ]);
+           $response['order_id']=$order;
+          
+          
+         
           DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+         
           foreach($data['items'] as $s){
+
+
+                 $category=Product::select('category')->where('id',$s['productId'])->first();
+                 $category_id=$category->category;
+
+                 if($category_id==2 && $s['quantity']>=6) {
+                   
+                
+                 $quantity=floor($s['quantity']/6);
+                   $s['total']=($s['quantity']-$quantity)*$s['unitPrice'];
+                    $response['discounts'][$i]['discountReason']="BUY_5_GET_1";
+                   $response['totalDiscount']+=$response['discounts'][$i]['discountAmount']=
+                   round(($s['quantity']*$s['unitPrice'])-$s['total'],2
+
+               );
+                    $response['discountedTotal']+=$response['discounts'][$i]['subtotal']=round($s['total'],2);
+                 }
+
                 OrderProduct::create([
                     'order_id'=>$order,
                     'product_id'=>$s['productId'],
@@ -82,7 +122,8 @@ class OrderController extends Controller
 
           }
           DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-          return response()->json(['success'=>'Sipariş alındı']);
+
+          return response()->json($response);
 
        
        
